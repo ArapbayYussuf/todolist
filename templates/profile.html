@@ -13,7 +13,12 @@
     </div>
 
     <script>
-        // Получение данных пользователя
+        // Проверка авторизации
+        if (!localStorage.getItem('access_token')) {
+            window.location.href = '/';
+            throw new Error('Не авторизован');
+        }
+
         fetch('/api/users/me/', {
             method: 'GET',
             headers: {

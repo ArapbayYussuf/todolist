@@ -10,6 +10,12 @@
     </div>
 
     <script>
+        // Проверка авторизации
+        if (!localStorage.getItem('access_token')) {
+            window.location.href = '/';
+            throw new Error('Не авторизован');
+        }
+
         // Функция для загрузки и отображения задач
         function loadTasks() {
             fetch('/api/tasks/', {
@@ -27,7 +33,7 @@
             .then(tasks => {
                 console.log('Полученные задачи:', tasks);
                 const taskList = document.getElementById('task-list');
-                taskList.innerHTML = ''; // Очищаем список перед загрузкой
+                taskList.innerHTML = '';
                 if (tasks.length === 0) {
                     taskList.innerHTML = '<p class="text-center">У вас пока нет задач.</p>';
                     return;
@@ -89,7 +95,6 @@
             });
         }
 
-        // Функция для удаления задачи
         function deleteTask(taskId) {
             if (!confirm('Вы уверены, что хотите удалить эту задачу?')) return;
 
@@ -105,7 +110,7 @@
                 }
                 const messageDiv = document.getElementById('task-message');
                 messageDiv.innerHTML = '<div class="alert alert-success">Задача успешно удалена!</div>';
-                loadTasks(); // Перезагружаем список задач
+                loadTasks();
             })
             .catch(error => {
                 const messageDiv = document.getElementById('task-message');
@@ -113,13 +118,10 @@
             });
         }
 
-        // Функция для редактирования задачи (заглушка)
         function editTask(taskId) {
             alert('Редактирование задачи с ID ' + taskId + ' пока в разработке.');
-            // Здесь можно добавить перенаправление на страницу редактирования
         }
 
-        // Загружаем задачи при загрузке страницы
         loadTasks();
     </script>
 {% endblock %}
