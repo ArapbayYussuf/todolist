@@ -1,7 +1,6 @@
 from django.shortcuts import render
-from django.shortcuts import render
 from rest_framework import viewsets, generics, status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth.models import User
@@ -16,24 +15,39 @@ from rest_framework_simplejwt.tokens import RefreshToken
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
-    permission_classes = []  # Отключаем требование аутентификации
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)
 
 class LoginView(TokenObtainPairView):
-    permission_classes = []  # Отключаем требование аутентификации
+    permission_classes = [AllowAny]
 
 class LogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
-            refresh_token = request.data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
+            refresh_token = request.data.get("refresh")
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            return Response({"message": "Вы успешно вышли из аккаунта"}, status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
+class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
@@ -55,7 +69,22 @@ class TaskViewSet(viewsets.ModelViewSet):
         return Task.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        task = serializer.save(user=self.request.user)
+        tag_ids = self.request.data.get('tags', [])
+        for tag_id in tag_ids:
+            try:
+                tag = Tag.objects.get(id=tag_id)
+                TaskTag.objects.create(task=task, tag=tag)
+            except Tag.DoesNotExist:
+                continue
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     @action(detail=True, methods=['post'], url_path='tags')
     def add_tag(self, request, pk=None):
@@ -64,9 +93,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         try:
             tag = Tag.objects.get(id=tag_id)
             TaskTag.objects.create(task=task, tag=tag)
-            return Response({'status': 'Tag added'}, status=status.HTTP_201_CREATED)
+            return Response({'status': 'Тег добавлен'}, status=status.HTTP_201_CREATED)
         except Tag.DoesNotExist:
-            return Response({'error': 'Tag not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Тег не найден'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=True, methods=['delete'], url_path='tags/(?P<tag_id>[^/.]+)')
     def remove_tag(self, request, pk=None, tag_id=None):
@@ -74,9 +103,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         try:
             task_tag = TaskTag.objects.get(task=task, tag__id=tag_id)
             task_tag.delete()
-            return Response({'status': 'Tag removed'}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'status': 'Тег удалён'}, status=status.HTTP_204_NO_CONTENT)
         except TaskTag.DoesNotExist:
-            return Response({'error': 'Tag not found for this task'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Тег не найден для этой задачи'}, status=status.HTTP_404_NOT_FOUND)
 
 class SubtaskViewSet(viewsets.ModelViewSet):
     serializer_class = SubtaskSerializer
@@ -99,7 +128,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return []
+            return [AllowAny()]
         return [IsAuthenticated()]
 
 class TagViewSet(viewsets.ModelViewSet):
@@ -108,5 +137,5 @@ class TagViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return []
+            return [AllowAny()]
         return [IsAuthenticated()]

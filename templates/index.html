@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="text-center">
+        <h1 class="mb-4">Добро пожаловать в Список дел</h1>
+        <img src=C:\Users\admin\PycharmProjects\business-to-do-list-flat-icon-modern-style-vector.jpg"
+        alt="Список дел" class="img-fluid rounded mb-4">
+        <p class="lead">
+            Список дел — это ваше идеальное приложение для управления задачами! Организуйте свои ежедневные задачи, разделяйте их по категориям, добавляйте теги и разбивайте на подзадачи. Оставайтесь продуктивными и никогда не пропустите дедлайн с нашим простым и удобным интерфейсом.
+        </p>
+        <div class="mt-4">
+            <h2>Зачем нужен Список дел?</h2>
+            <ul class="list-unstyled">
+                <li class="mb-2">✔ Экономьте время с помощью структурированного планирования.</li>
+                <li class="mb-2">✔ Следите за прогрессом с подзадачами и статусами.</li>
+                <li class="mb-2">✔ Используйте теги для быстрого поиска задач.</li>
+                <li class="mb-2">✔ Работайте в команде: назначайте задачи и прикрепляйте файлы.</li>
+            </ul>
+        </div>
+        <div class="mt-4">
+            <a href="/register/" class="btn btn-danger btn-lg me-2">Зарегистрироваться</a>
+            <a href="/login/" class="btn btn-outline-danger btn-lg">Войти</a>
+        </div>
+    </div>
+{% endblock %}

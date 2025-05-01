@@ -1,0 +1,27 @@
+/* Кастомные стили для кнопок и текста */
+body {
+    background-color: #212529; /* Чёрный фон */
+}
+
+.navbar-brand, .nav-link {
+    color: #f8f9fa !important; /* Светлый текст в навигации */
+}
+
+.navbar-brand:hover, .nav-link:hover {
+    color: #dc3545 !important; /* Красный цвет при наведении */
+}
+
+.btn-danger {
+    background-color: #dc3545; /* Красные кнопки */
+    border-color: #dc3545;
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    color: #fff;
+}

@@ -5,57 +5,52 @@ from .models import Task, Subtask, Category, Tag, TaskTag
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email']
-
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = ['username', 'email', 'password']
+        fields = ['id', 'username', 'email', 'password']
+        extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=validated_data['password']
-        )
+        user = User.objects.create_user(**validated_data)
+        return user
+
+class RegisterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'password']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        user = User.objects.create_user(**validated_data)
         return user
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'created_at']
+        fields = ['id', 'name']
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ['id', 'name', 'created_at']
+        fields = ['id', 'name']
+
+class TaskTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskTag
+        fields = ['id', 'task', 'tag']
 
 class SubtaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subtask
-        fields = ['id', 'title', 'completed', 'task', 'created_at']
-        read_only_fields = ['task', 'created_at']
-
-class TaskTagSerializer(serializers.ModelSerializer):
-    tag = TagSerializer()
-
-    class Meta:
-        model = TaskTag
-        fields = ['id', 'tag']
+        fields = ['id', 'title', 'task']
 
 class TaskSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
-    category_id = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(), source='category', write_only=True, required=False
-    )
-    subtasks = SubtaskSerializer(many=True, read_only=True)
-    tags = TaskTagSerializer(many=True, read_only=True)
-    user = UserSerializer(read_only=True)
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), required=False, allow_null=True)
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
-        fields = ['id', 'title', 'description', 'completed', 'created_at',
-                  'updated_at', 'user', 'category',
-                  'category_id', 'priority', 'subtasks', 'tags']
+        fields = ['id', 'title', 'description', 'category', 'tags', 'user']
+        read_only_fields = ['user']
+
+    def get_tags(self, obj):
+        task_tags = TaskTag.objects.filter(task=obj)
+        return [task_tag.tag.id for task_tag in task_tags]

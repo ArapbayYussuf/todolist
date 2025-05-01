@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <h2 class="text-center mb-4">Список задач</h2>
+            <div id="task-list" class="mb-4"></div>
+            <div id="task-message" class="mt-3 text-center"></div>
+        </div>
+    </div>
+
+    <script>
+        // Функция для загрузки и отображения задач
+        function loadTasks() {
+            fetch('/api/tasks/', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить задачи: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(tasks => {
+                console.log('Полученные задачи:', tasks);
+                const taskList = document.getElementById('task-list');
+                taskList.innerHTML = ''; // Очищаем список перед загрузкой
+                if (tasks.length === 0) {
+                    taskList.innerHTML = '<p class="text-center">У вас пока нет задач.</p>';
+                    return;
+                }
+
+                tasks.forEach(task => {
+                    const categoryPromise = task.category
+                        ? fetch(`/api/categories/${task.category}/`, {
+                            headers: {
+                                'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                            }
+                        })
+                            .then(res => res.json())
+                            .then(category => category.name)
+                            .catch(() => 'Без категории')
+                        : Promise.resolve('Без категории');
+
+                    const tagsPromise = task.tags && task.tags.length > 0
+                        ? Promise.all(task.tags.map(tagId =>
+                            fetch(`/api/tags/${tagId}/`, {
+                                headers: {
+                                    'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                                }
+                            })
+                                .then(res => res.json())
+                                .then(tag => tag.name)
+                                .catch(() => null)
+                        ))
+                        : Promise.resolve([]);
+
+                    Promise.all([categoryPromise, tagsPromise])
+                        .then(([categoryName, tagNames]) => {
+                            const taskCard = document.createElement('div');
+                            taskCard.className = 'card bg-dark text-light mb-3';
+                            taskCard.innerHTML = `
+                                <div class="card-body">
+                                    <h5 class="card-title">${task.title}</h5>
+                                    <p class="card-text">${task.description || 'Без описания'}</p>
+                                    <p class="card-text"><strong>Категория:</strong> ${categoryName}</p>
+                                    <p class="card-text"><strong>Теги:</strong> ${
+                                        tagNames.length > 0
+                                            ? tagNames.filter(tag => tag).map(tag => `<span class="badge bg-danger me-1">${tag}</span>`).join('')
+                                            : 'Без тегов'
+                                    }</p>
+                                    <div class="d-flex justify-content-end">
+                                        <button class="btn btn-warning me-2" onclick="editTask(${task.id})">Редактировать</button>
+                                        <button class="btn btn-danger" onclick="deleteTask(${task.id})">Удалить</button>
+                                    </div>
+                                </div>
+                            `;
+                            taskList.appendChild(taskCard);
+                        });
+                });
+            })
+            .catch(error => {
+                const messageDiv = document.getElementById('task-message');
+                messageDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
+                console.error('Ошибка:', error);
+            });
+        }
+
+        // Функция для удаления задачи
+        function deleteTask(taskId) {
+            if (!confirm('Вы уверены, что хотите удалить эту задачу?')) return;
+
+            fetch(`/api/tasks/${taskId}/`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Не удалось удалить задачу: ' + response.status);
+                }
+                const messageDiv = document.getElementById('task-message');
+                messageDiv.innerHTML = '<div class="alert alert-success">Задача успешно удалена!</div>';
+                loadTasks(); // Перезагружаем список задач
+            })
+            .catch(error => {
+                const messageDiv = document.getElementById('task-message');
+                messageDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
+            });
+        }
+
+        // Функция для редактирования задачи (заглушка)
+        function editTask(taskId) {
+            alert('Редактирование задачи с ID ' + taskId + ' пока в разработке.');
+            // Здесь можно добавить перенаправление на страницу редактирования
+        }
+
+        // Загружаем задачи при загрузке страницы
+        loadTasks();
+    </script>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="text-center mb-4">Вход</h2>
+            <form id="login-form">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Имя пользователя</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Пароль</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-danger w-100">Войти</button>
+            </form>
+            <div id="login-message" class="mt-3 text-center"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const loginData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            fetch('/api/login/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(loginData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                const messageDiv = document.getElementById('login-message');
+                localStorage.setItem('access_token', data.access);
+                localStorage.setItem('refresh_token', data.refresh);
+                messageDiv.innerHTML = '<div class="alert alert-success">Вы успешно вошли в аккаунт! Перенаправление...</div>';
+                setTimeout(() => {
+                    window.location.href = '/profile/';
+                }, 1000);
+            })
+            .catch(error => {
+                const messageDiv = document.getElementById('login-message');
+                let errorMessage = 'Ошибка при входе: ';
+                if (error.detail) {
+                    errorMessage += 'Неверное имя пользователя или пароль.';
+                } else {
+                    errorMessage += 'Неизвестная ошибка.';
+                }
+                messageDiv.innerHTML = '<div class="alert alert-danger">' + errorMessage + '</div>';
+            });
+        });
+    </script>
+{% endblock %}
