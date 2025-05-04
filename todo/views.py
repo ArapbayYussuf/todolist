@@ -11,6 +11,7 @@ from .serializers import (
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django_filters.rest_framework import DjangoFilterBackend
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -64,19 +65,18 @@ class UserViewSet(viewsets.ModelViewSet):
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['category', 'priority', 'completed', 'tags']
+    ordering_fields = ['created_at', 'priority', 'updated_at']
+    ordering = ['created_at']
+    search_fields = ['title', 'description', 'tags__name']  # Добавляем поиск по названию, описанию и тегам
 
     def get_queryset(self):
-        return Task.objects.filter(user=self.request.user)
+        queryset = Task.objects.filter(user=self.request.user)
+        return queryset
 
     def perform_create(self, serializer):
-        task = serializer.save(user=self.request.user)
-        tag_ids = self.request.data.get('tags', [])
-        for tag_id in tag_ids:
-            try:
-                tag = Tag.objects.get(id=tag_id)
-                TaskTag.objects.create(task=task, tag=tag)
-            except Tag.DoesNotExist:
-                continue
+        serializer.save(user=self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -85,27 +85,6 @@ class TaskViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    @action(detail=True, methods=['post'], url_path='tags')
-    def add_tag(self, request, pk=None):
-        task = self.get_object()
-        tag_id = request.data.get('tag_id')
-        try:
-            tag = Tag.objects.get(id=tag_id)
-            TaskTag.objects.create(task=task, tag=tag)
-            return Response({'status': 'Тег добавлен'}, status=status.HTTP_201_CREATED)
-        except Tag.DoesNotExist:
-            return Response({'error': 'Тег не найден'}, status=status.HTTP_404_NOT_FOUND)
-
-    @action(detail=True, methods=['delete'], url_path='tags/(?P<tag_id>[^/.]+)')
-    def remove_tag(self, request, pk=None, tag_id=None):
-        task = self.get_object()
-        try:
-            task_tag = TaskTag.objects.get(task=task, tag__id=tag_id)
-            task_tag.delete()
-            return Response({'status': 'Тег удалён'}, status=status.HTTP_204_NO_CONTENT)
-        except TaskTag.DoesNotExist:
-            return Response({'error': 'Тег не найден для этой задачи'}, status=status.HTTP_404_NOT_FOUND)
 
 class SubtaskViewSet(viewsets.ModelViewSet):
     serializer_class = SubtaskSerializer
@@ -134,8 +113,4 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated()]
+    permission_classes = [IsAuthenticated]
