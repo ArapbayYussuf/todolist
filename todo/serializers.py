@@ -48,9 +48,16 @@ class TaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Task
-        fields = ['id', 'title', 'description', 'category', 'tags', 'user']
+        fields = ['id', 'title', 'description', 'category', 'tags', 'priority', 'completed', 'user']
         read_only_fields = ['user']
 
     def get_tags(self, obj):
         task_tags = TaskTag.objects.filter(task=obj)
         return [task_tag.tag.id for task_tag in task_tags]
+
+    def create(self, validated_data):
+        tags_data = validated_data.pop('tags', [])
+        task = Task.objects.create(**validated_data)
+        for tag_id in tags_data:
+            TaskTag.objects.create(task=task, tag_id=tag_id)
+        return task

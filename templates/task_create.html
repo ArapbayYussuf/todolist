@@ -16,7 +16,7 @@
                 <div class="mb-3">
                     <label for="category" class="form-label">Категория</label>
                     <select class="form-control" id="category" name="category">
-                        <option value="">Выберите категорию</option>
+                        <option value="">Без категории</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -24,6 +24,23 @@
                     <div id="tags-checkboxes">
                         <!-- Теги будут загружены через JavaScript -->
                     </div>
+                </div>
+                <div class="mb-3">
+                    <label for="priority" class="form-label">Приоритет</label>
+                    <select class="form-control" id="priority" name="priority">
+                        <option value="">Без приоритета</option>
+                        <option value="low">Низкий</option>
+                        <option value="medium">Средний</option>
+                        <option value="high">Высокий</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="completed" class="form-label">Статус</label>
+                    <select class="form-control" id="completed" name="completed">
+                        <option value="">Не указано</option>
+                        <option value="false">Не выполнено</option>
+                        <option value="true">Выполнено</option>
+                    </select>
                 </div>
                 <button type="submit" class="btn btn-danger w-100">Создать задачу</button>
             </form>
@@ -86,7 +103,9 @@
                 title: formData.get('title'),
                 description: formData.get('description'),
                 category: formData.get('category') ? parseInt(formData.get('category')) : null,
-                tags: tags.length > 0 ? tags : []
+                tags: tags.length > 0 ? tags : [],
+                priority: formData.get('priority') || null,
+                completed: formData.get('completed') ? formData.get('completed') === 'true' : null
             };
 
             console.log('Отправляемые данные:', taskData); // Для отладки

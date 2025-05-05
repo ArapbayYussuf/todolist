@@ -40,10 +40,12 @@ class LogoutView(generics.GenericAPIView):
 
     def post(self, request):
         try:
+            # Получаем refresh-токен из запроса
             refresh_token = request.data.get("refresh")
             if refresh_token:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
+            # Возвращаем успешный ответ
             return Response({"message": "Вы успешно вышли из аккаунта"}, status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -69,7 +71,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     filterset_fields = ['category', 'priority', 'completed', 'tags']
     ordering_fields = ['created_at', 'priority', 'updated_at']
     ordering = ['created_at']
-    search_fields = ['title', 'description', 'tags__name']  # Добавляем поиск по названию, описанию и тегам
+    search_fields = ['title', 'description', 'tags__name']
 
     def get_queryset(self):
         queryset = Task.objects.filter(user=self.request.user)
@@ -85,6 +87,13 @@ class TaskViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class SubtaskViewSet(viewsets.ModelViewSet):
     serializer_class = SubtaskSerializer
@@ -114,3 +123,12 @@ class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+# Вьюшка для страницы профиля
+def profile_view(request):
+    return render(request, 'profile.html')

@@ -26,12 +26,12 @@ class Task(models.Model):
     )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    completed = models.BooleanField(default=False)
+    completed = models.BooleanField(null=True, blank=True)  # Убираем default=False
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, null=True, blank=True)  # Убираем default='medium'
     tags = models.ManyToManyField(Tag, through='TaskTag', related_name='tasks')
 
     def __str__(self):

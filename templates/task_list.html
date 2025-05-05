@@ -65,8 +65,14 @@
                 </div>
             </form>
 
-            <!-- Список задач -->
+            <!-- Список невыполненных задач -->
+            <h3 class="mb-3">Невыполненные задачи</h3>
             <div id="task-list" class="mb-4"></div>
+
+            <!-- Список выполненных задач -->
+            <h3 class="mb-3">Выполненные задачи</h3>
+            <div id="completed-task-list" class="mb-4"></div>
+
             <div id="task-message" class="mt-3 text-center"></div>
         </div>
     </div>
@@ -77,6 +83,9 @@
             window.location.href = '/';
             throw new Error('Не авторизован');
         }
+
+        // Хранилище для состояния задач
+        let taskState = JSON.parse(localStorage.getItem('taskState')) || {};
 
         // Загрузка категорий
         fetch('/api/categories/', {
@@ -167,71 +176,185 @@
             .then(tasks => {
                 console.log('Полученные задачи:', tasks);
                 const taskList = document.getElementById('task-list');
+                const completedTaskList = document.getElementById('completed-task-list');
                 taskList.innerHTML = '';
-                if (tasks.length === 0) {
-                    taskList.innerHTML = '<p class="text-center">Нет задач, соответствующих фильтру или поиску.</p>';
-                    return;
+                completedTaskList.innerHTML = '';
+
+                // Синхронизируем локальное состояние с данными от API
+                tasks.forEach(task => {
+                    taskState[task.id] = task.completed;
+                });
+                localStorage.setItem('taskState', JSON.stringify(taskState));
+
+                // Разделяем задачи
+                const activeTasks = tasks.filter(task => !task.completed);
+                const completedTasksList = tasks.filter(task => task.completed);
+
+                if (activeTasks.length === 0) {
+                    taskList.innerHTML = '<p class="text-center">Нет невыполненных задач.</p>';
+                } else {
+                    activeTasks.forEach(task => renderTask(task, taskList));
                 }
 
-                tasks.forEach(task => {
-                    const categoryPromise = task.category
-                        ? fetch(`/api/categories/${task.category}/`, {
-                            headers: {
-                                'Authorization': 'Bearer ' + localStorage.getItem('access_token')
-                            }
-                        })
-                            .then(res => res.json())
-                            .then(category => category.name)
-                            .catch(() => 'Без категории')
-                        : Promise.resolve('Без категории');
-
-                    const tagsPromise = task.tags.length > 0
-                        ? Promise.all(task.tags.map(tagId =>
-                            fetch(`/api/tags/${tagId}/`, {
-                                headers: {
-                                    'Authorization': 'Bearer ' + localStorage.getItem('access_token')
-                                }
-                            })
-                                .then(res => res.json())
-                                .then(tag => tag.name)
-                        ))
-                            .then(tagNames => tagNames.join(', ') || 'Без тегов')
-                            .catch(() => 'Без тегов')
-                        : Promise.resolve('Без тегов');
-
-                    Promise.all([categoryPromise, tagsPromise]).then(([categoryName, tagNames]) => {
-                        const priorityColor = task.priority === 'high' ? 'text-danger' :
-                                            task.priority === 'medium' ? 'text-warning' :
-                                            'text-success';
-                        const taskCard = document.createElement('div');
-                        taskCard.className = 'card bg-dark text-light mb-3';
-                        taskCard.innerHTML = `
-                            <div class="card-body">
-                                <h5 class="card-title">${task.title}</h5>
-                                <p class="card-text">${task.description || 'Без описания'}</p>
-                                <p class="card-text"><strong>Категория:</strong> ${categoryName}</p>
-                                <p class="card-text"><strong>Теги:</strong> ${tagNames}</p>
-                                <p class="card-text"><strong>Приоритет:</strong> <span class="${priorityColor}">${
-                                    task.priority === 'high' ? 'Высокий' :
-                                    task.priority === 'medium' ? 'Средний' : 'Низкий'
-                                }</span></p>
-                                <p class="card-text"><strong>Статус:</strong> ${
-                                    task.completed ? 'Выполнено' : 'Не выполнено'
-                                }</p>
-                                <div class="d-flex justify-content-end">
-                                    <button class="btn btn-warning me-2" onclick="editTask(${task.id})">Редактировать</button>
-                                    <button class="btn btn-danger" onclick="deleteTask(${task.id})">Удалить</button>
-                                </div>
-                            </div>
-                        `;
-                        taskList.appendChild(taskCard);
-                    });
-                });
+                if (completedTasksList.length === 0) {
+                    completedTaskList.innerHTML = '<p class="text-center">Нет выполненных задач.</p>';
+                } else {
+                    completedTasksList.forEach(task => renderTask(task, completedTaskList));
+                }
             })
             .catch(error => {
                 const messageDiv = document.getElementById('task-message');
                 messageDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
                 console.error('Ошибка:', error);
+            });
+        }
+
+        // Функция для рендеринга задачи
+        function renderTask(task, container) {
+            const categoryPromise = task.category
+                ? fetch(`/api/categories/${task.category}/`, {
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                    }
+                })
+                    .then(res => res.json())
+                    .then(category => category.name)
+                    .catch(() => 'Без категории')
+                : Promise.resolve('Без категории');
+
+            const tagsPromise = task.tags.length > 0
+                ? Promise.all(task.tags.map(tagId =>
+                    fetch(`/api/tags/${tagId}/`, {
+                        headers: {
+                            'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                        }
+                    })
+                        .then(res => res.json())
+                        .then(tag => tag.name)
+                ))
+                    .then(tagNames => tagNames.join(', ') || 'Без тегов')
+                    .catch(() => 'Без тегов')
+                : Promise.resolve('Без тегов');
+
+            Promise.all([categoryPromise, tagsPromise]).then(([categoryName, tagNames]) => {
+                const priorityColor = task.priority === 'high' ? 'text-danger' :
+                                    task.priority === 'medium' ? 'text-warning' :
+                                    'text-success';
+                const taskCard = document.createElement('div');
+                taskCard.className = 'card bg-dark text-light mb-3';
+                const isCompleted = task.completed;
+                taskCard.innerHTML = `
+                    <div class="card-body">
+                        <h5 class="card-title">${task.title}</h5>
+                        <p class="card-text">${task.description || 'Без описания'}</p>
+                        <p class="card-text"><strong>Категория:</strong> ${categoryName}</p>
+                        <p class="card-text"><strong>Теги:</strong> ${tagNames}</p>
+                        <p class="card-text"><strong>Приоритет:</strong> <span class="${priorityColor}">${
+                            task.priority === 'high' ? 'Высокий' :
+                            task.priority === 'medium' ? 'Средний' : 'Низкий'
+                        }</span></p>
+                        <p class="card-text"><strong>Статус:</strong> ${
+                            isCompleted ? 'Выполнено' : 'Не выполнено'
+                        }</p>
+                        <div class="d-flex justify-content-end">
+                            <button class="btn ${isCompleted ? 'btn-success' : 'btn-warning'} me-2 complete-task-btn" data-task-id="${task.id}" ${
+                                isCompleted ? 'disabled' : ''
+                            }>${
+                                isCompleted ? 'Выполнено' : 'Задание выполнено'
+                            }</button>
+                            <button class="btn btn-danger" onclick="deleteTask(${task.id})">Удалить</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(taskCard);
+
+                if (!isCompleted) {
+                    taskCard.querySelector('.complete-task-btn').addEventListener('click', function() {
+                        completeTask(task.id, this);
+                    });
+                }
+            });
+        }
+
+        // Функция для завершения задачи
+        function completeTask(taskId, button) {
+            const accessToken = localStorage.getItem('access_token');
+            fetch(`/api/tasks/${taskId}/`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': 'Bearer ' + accessToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ completed: true })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Не удалось обновить задачу: ' + response.status);
+                // Обновляем кнопку сразу
+                button.classList.remove('btn-warning');
+                button.classList.add('btn-success');
+                button.disabled = true;
+                button.textContent = 'Выполнено';
+                // Обновляем локальное состояние
+                taskState[taskId] = true;
+                localStorage.setItem('taskState', JSON.stringify(taskState));
+                // Перемещаем задачу
+                updateTaskListAfterCompletion(taskId);
+                // Обновляем статистику
+                updateMainStats();
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                const messageDiv = document.getElementById('task-message');
+                messageDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
+            });
+        }
+
+        // Функция для обновления списка задач после завершения
+        function updateTaskListAfterCompletion(taskId) {
+            const taskList = document.getElementById('task-list');
+            const completedTaskList = document.getElementById('completed-task-list');
+            const taskCard = taskList.querySelector(`[data-task-id="${taskId}"]`)?.closest('.card');
+            if (taskCard) {
+                taskCard.remove();
+                if (taskList.children.length === 0) {
+                    taskList.innerHTML = '<p class="text-center">Нет невыполненных задач.</p>';
+                }
+            }
+            // Загружаем обновлённую задачу
+            fetch(`/api/tasks/${taskId}/`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                }
+            })
+            .then(response => response.json())
+            .then(task => {
+                if (completedTaskList.children.length === 0) {
+                    completedTaskList.innerHTML = '';
+                }
+                renderTask(task, completedTaskList);
+            });
+        }
+
+        // Обновление статистики на главной странице
+        function updateMainStats() {
+            const accessToken = localStorage.getItem('access_token');
+            fetch('/api/tasks/', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + accessToken
+                }
+            })
+            .then(response => response.json())
+            .then(tasks => {
+                const activeTasks = tasks.filter(task => !task.completed).length;
+                const completedTasks = tasks.filter(task => task.completed).length;
+                localStorage.setItem('activeTasks', activeTasks);
+                localStorage.setItem('completedTasks', completedTasks);
+                window.dispatchEvent(new Event('statsUpdated'));
+            })
+            .catch(error => {
+                console.error('Ошибка обновления статистики:', error);
             });
         }
 
@@ -269,15 +392,12 @@
                 const messageDiv = document.getElementById('task-message');
                 messageDiv.innerHTML = '<div class="alert alert-success">Задача успешно удалена!</div>';
                 loadTasks();
+                updateMainStats();
             })
             .catch(error => {
                 const messageDiv = document.getElementById('task-message');
                 messageDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
             });
-        }
-
-        function editTask(taskId) {
-            window.location.href = `/tasks/edit/${taskId}/`;
         }
 
         // Загрузка задач при загрузке страницы
