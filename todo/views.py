@@ -12,6 +12,13 @@ from .serializers import (
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+from rest_framework.pagination import PageNumberPagination
+
+class TaskPagination(PageNumberPagination):
+    page_size = 3
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -40,12 +47,10 @@ class LogoutView(generics.GenericAPIView):
 
     def post(self, request):
         try:
-            # Получаем refresh-токен из запроса
             refresh_token = request.data.get("refresh")
             if refresh_token:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
-            # Возвращаем успешный ответ
             return Response({"message": "Вы успешно вышли из аккаунта"}, status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -67,14 +72,15 @@ class UserViewSet(viewsets.ModelViewSet):
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['category', 'priority', 'completed', 'tags']
     ordering_fields = ['created_at', 'priority', 'updated_at']
     ordering = ['created_at']
     search_fields = ['title', 'description', 'tags__name']
+    pagination_class = TaskPagination
 
     def get_queryset(self):
-        queryset = Task.objects.filter(user=self.request.user)
+        queryset = Task.objects.filter(user=self.request.user).prefetch_related('tags')
         return queryset
 
     def perform_create(self, serializer):
@@ -129,6 +135,5 @@ class TagViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-# Вьюшка для страницы профиля
 def profile_view(request):
     return render(request, 'profile.html')
