@@ -12,7 +12,7 @@ from .serializers import (
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter
+from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.pagination import PageNumberPagination
 
 class TaskPagination(PageNumberPagination):
@@ -64,23 +64,65 @@ class UserViewSet(viewsets.ModelViewSet):
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
-    @action(detail=False, methods=['get'], url_path='me')
+    @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        user = request.user
+        if request.method == 'GET':
+            serializer = self.get_serializer(user)
+            return Response(serializer.data)
+        elif request.method == 'PATCH':
+            serializer = self.get_serializer(user, data=request.data, partial=True)
+            if serializer.is_valid():
+                # Обновление имени пользователя
+                if 'username' in request.data:
+                    new_username = request.data['username']
+                    if User.objects.exclude(id=user.id).filter(username=new_username).exists():
+                        return Response({"error": "Имя пользователя уже занято"}, status=status.HTTP_400_BAD_REQUEST)
+                    user.username = new_username
+                    user.save()
+
+                # Обновление пароля
+                if 'new_password' in request.data and 'old_password' in request.data:
+                    old_password = request.data['old_password']
+                    new_password = request.data['new_password']
+                    if not user.check_password(old_password):
+                        return Response({"error": "Неверный старый пароль"}, status=status.HTTP_400_BAD_REQUEST)
+                    user.set_password(new_password)
+                    user.save()
+                    # После смены пароля обновляем токены
+                    refresh = RefreshToken.for_user(user)
+                    return Response({
+                        "message": "Пароль успешно изменён",
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token)
+                    }, status=status.HTTP_200_OK)
+
+                serializer = self.get_serializer(user)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['category', 'priority', 'completed', 'tags']
-    ordering_fields = ['created_at', 'priority', 'updated_at']
-    ordering = ['created_at']
+    ordering_fields = ['priority']
+    ordering = ['priority']
     search_fields = ['title', 'description', 'tags__name']
     pagination_class = TaskPagination
 
     def get_queryset(self):
         queryset = Task.objects.filter(user=self.request.user).prefetch_related('tags')
+        # Получаем параметр ordering из запроса
+        ordering = self.request.query_params.get('ordering', None)
+        if ordering:
+            # Убедимся, что сортировка по priority работает корректно
+            if ordering == 'priority':
+                # От низкого к высокому: low → medium → high
+                queryset = queryset.order_by('priority')
+            elif ordering == '-priority':
+                # От высокого к низкому: high → medium → low
+                queryset = queryset.order_by('-priority')
         return queryset
 
     def perform_create(self, serializer):

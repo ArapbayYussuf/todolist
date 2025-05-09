@@ -88,8 +88,16 @@
                             <input type="text" class="form-control" id="username-input" placeholder="Введите новое имя пользователя">
                         </div>
                         <div class="mb-3">
-                            <label for="password-input" class="form-label">Новый пароль</label>
-                            <input type="password" class="form-control" id="password-input" placeholder="Введите новый пароль">
+                            <label for="old-password-input" class="form-label">Старый пароль</label>
+                            <input type="password" class="form-control" id="old-password-input" placeholder="Введите старый пароль">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new-password-input" class="form-label">Новый пароль</label>
+                            <input type="password" class="form-control" id="new-password-input" placeholder="Введите новый пароль">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm-password-input" class="form-label">Подтвердите новый пароль</label>
+                            <input type="password" class="form-control" id="confirm-password-input" placeholder="Подтвердите новый пароль">
                         </div>
                         <div class="mb-3">
                             <label for="email-input" class="form-label">Email</label>
@@ -249,16 +257,34 @@
 
             const accessToken = localStorage.getItem('access_token');
             const username = document.getElementById('username-input').value;
-            const password = document.getElementById('password-input').value;
+            const oldPassword = document.getElementById('old-password-input').value;
+            const newPassword = document.getElementById('new-password-input').value;
+            const confirmPassword = document.getElementById('confirm-password-input').value;
             const email = document.getElementById('email-input').value;
             const about = document.getElementById('about-input').value;
             const instagram = document.getElementById('instagram-input').value;
             const photo = document.getElementById('photo-input').value;
 
+            // Проверка пароля
+            if (newPassword || confirmPassword) {
+                if (!oldPassword) {
+                    document.getElementById('profile-message').innerHTML = '<div class="alert alert-danger">Введите старый пароль для изменения!</div>';
+                    return;
+                }
+                if (newPassword !== confirmPassword) {
+                    document.getElementById('profile-message').innerHTML = '<div class="alert alert-danger">Новые пароли не совпадают!</div>';
+                    return;
+                }
+            }
+
             const updateData = {};
             if (username) updateData.username = username;
-            if (password) updateData.password = password;
+            if (oldPassword && newPassword) {
+                updateData.old_password = oldPassword;
+                updateData.new_password = newPassword;
+            }
 
+            // Обновление имени и пароля через API
             if (Object.keys(updateData).length > 0) {
                 fetch('/api/users/me/', {
                     method: 'PATCH',
@@ -270,21 +296,26 @@
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Не удалось обновить имя или пароль');
+                        return response.json().then(err => { throw err; });
                     }
                     return response.json();
                 })
-                .then(user => {
-                    document.getElementById('username').textContent = user.username;
+                .then(data => {
+                    document.getElementById('username').textContent = data.username;
+                    // Если был изменён пароль, обновляем токены
+                    if (data.access && data.refresh) {
+                        localStorage.setItem('access_token', data.access);
+                        localStorage.setItem('refresh_token', data.refresh);
+                    }
                 })
                 .catch(error => {
                     console.error('Ошибка:', error);
-                    document.getElementById('profile-message').innerHTML = '<div class="alert alert-danger">Ошибка обновления имени или пароля: ' + error.message + '</div>';
+                    document.getElementById('profile-message').innerHTML = '<div class="alert alert-danger">Ошибка обновления: ' + JSON.stringify(error) + '</div>';
                     return;
                 });
             }
 
-            // Сохранение данных
+            // Сохранение данных в localStorage
             localStorage.setItem(`user_${currentUserId}_profile_email`, email);
             localStorage.setItem(`user_${currentUserId}_profile_about`, about);
             localStorage.setItem(`user_${currentUserId}_profile_instagram`, instagram);
@@ -294,6 +325,7 @@
                 localStorage.removeItem(`user_${currentUserId}_profile_photo`);
             }
 
+            // Обновление отображения
             document.getElementById('email').textContent = email || 'Не указан';
             document.getElementById('about').textContent = about || 'Не указано';
             document.getElementById('instagram').href = instagram || '#';
@@ -328,7 +360,9 @@
             .then(user => {
                 currentUserId = user.id;
                 document.getElementById('username-input').value = user.username;
-                document.getElementById('password-input').value = '';
+                document.getElementById('old-password-input').value = '';
+                document.getElementById('new-password-input').value = '';
+                document.getElementById('confirm-password-input').value = '';
                 document.getElementById('email-input').value = localStorage.getItem(`user_${currentUserId}_profile_email`) || user.email;
                 document.getElementById('about-input').value = localStorage.getItem(`user_${currentUserId}_profile_about`) || '';
                 document.getElementById('instagram-input').value = localStorage.getItem(`user_${currentUserId}_profile_instagram`) || '';

@@ -54,8 +54,6 @@
                         <label for="ordering" class="form-label">Сортировка</label>
                         <select class="form-control" id="ordering" name="ordering">
                             <option value="">Без сортировки</option>
-                            <option value="created_at">По дате (сначала старые)</option>
-                            <option value="-created_at">По дате (сначала новые)</option>
                             <option value="priority">По приоритету (А-Я)</option>
                             <option value="-priority">По приоритету (Я-А)</option>
                         </select>
@@ -175,7 +173,7 @@
 
             const searchQuery = searchInput.value.trim();
             if (searchQuery) {
-                params.append('search', encodeURIComponent(searchQuery)); // Убедимся, что поисковый запрос закодирован
+                params.append('search', encodeURIComponent(searchQuery));
             }
 
             params.append('completed', completed);
@@ -188,19 +186,24 @@
         function loadTasks() {
             // Загрузка невыполненных задач
             const uncompletedUrl = buildFilterUrl('false', uncompletedPage);
+            console.log('Запрос для невыполненных задач:', uncompletedUrl);
             fetch(uncompletedUrl, {
                 method: 'GET',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('access_token')
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка при загрузке невыполненных задач: ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
                 console.log('Невыполненные задачи:', data);
                 const taskList = document.getElementById('task-list');
                 taskList.innerHTML = '';
 
-                // Синхронизируем локальное состояние
                 if (data.results) {
                     data.results.forEach(task => {
                         taskState[task.id] = task.completed;
@@ -216,7 +219,6 @@
                     taskList.innerHTML = '<p class="text-center">Нет невыполненных задач.</p>';
                 }
 
-                // Обновляем пагинацию для невыполненных задач
                 updatePagination(data, 'uncompleted');
             })
             .catch(error => {
@@ -227,19 +229,24 @@
 
             // Загрузка выполненных задач
             const completedUrl = buildFilterUrl('true', completedPage);
+            console.log('Запрос для выполненных задач:', completedUrl);
             fetch(completedUrl, {
                 method: 'GET',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('access_token')
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка при загрузке выполненных задач: ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
                 console.log('Выполненные задачи:', data);
                 const completedTaskList = document.getElementById('completed-task-list');
                 completedTaskList.innerHTML = '';
 
-                // Синхронизируем локальное состояние
                 if (data.results) {
                     data.results.forEach(task => {
                         taskState[task.id] = task.completed;
@@ -255,7 +262,6 @@
                     completedTaskList.innerHTML = '<p class="text-center">Нет выполненных задач.</p>';
                 }
 
-                // Обновляем пагинацию для выполненных задач
                 updatePagination(data, 'completed');
             })
             .catch(error => {
@@ -345,17 +351,13 @@
             })
             .then(response => {
                 if (!response.ok) throw new Error('Не удалось обновить задачу: ' + response.status);
-                // Обновляем кнопку сразу
                 button.classList.remove('btn-warning');
                 button.classList.add('btn-success');
                 button.disabled = true;
                 button.textContent = 'Выполнено';
-                // Обновляем локальное состояние
                 taskState[taskId] = true;
                 localStorage.setItem('taskState', JSON.stringify(taskState));
-                // Перемещаем задачу
                 updateTaskListAfterCompletion(taskId);
-                // Обновляем статистику
                 updateMainStats();
             })
             .catch(error => {
@@ -376,7 +378,6 @@
                     taskList.innerHTML = '<p class="text-center">Нет невыполненных задач.</p>';
                 }
             }
-            // Загружаем обновлённую задачу
             fetch(`/api/tasks/${taskId}/`, {
                 method: 'GET',
                 headers: {
@@ -408,7 +409,6 @@
                 return response.json();
             })
             .then(data => {
-                // Учитываем, что /api/tasks/ возвращает пагинированный ответ
                 const tasks = data.results || data;
                 const activeTasks = tasks.filter(task => !task.completed).length;
                 const completedTasks = tasks.filter(task => task.completed).length;
@@ -427,11 +427,9 @@
             const pagination = document.getElementById(type + '-pagination');
             pagination.innerHTML = '';
 
-            // Извлекаем текущую страницу из ответа
             let currentPage = type === 'uncompleted' ? uncompletedPage : completedPage;
             const totalPages = Math.ceil(data.count / 3);
 
-            // Кнопка "Предыдущая"
             const prevLi = document.createElement('li');
             prevLi.className = 'page-item' + (currentPage > 1 ? '' : ' disabled');
             prevLi.innerHTML = '<a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">«</span></a>';
@@ -448,7 +446,6 @@
             }
             pagination.appendChild(prevLi);
 
-            // Номера страниц
             for (let i = 1; i <= totalPages; i++) {
                 const pageLi = document.createElement('li');
                 pageLi.className = 'page-item' + (i === currentPage ? ' active' : '');
@@ -465,7 +462,6 @@
                 pagination.appendChild(pageLi);
             }
 
-            // Кнопка "Следующая"
             const nextLi = document.createElement('li');
             nextLi.className = 'page-item' + (currentPage < totalPages ? '' : ' disabled');
             nextLi.innerHTML = '<a class="page-link" href="#" aria-label="Next"><span aria-hidden="true">»</span></a>';
@@ -509,8 +505,8 @@
 
         // Обработчик нажатия на кнопку поиска
         document.getElementById('search-button').addEventListener('click', function() {
-            uncompletedPage = 1;  // Сбрасываем на первую страницу
-            completedPage = 1;    // Сбрасываем на первую страницу
+            uncompletedPage = 1;
+            completedPage = 1;
             loadTasks();
         });
 
